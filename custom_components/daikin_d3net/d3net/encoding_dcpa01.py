@@ -427,13 +427,24 @@ class UnitHoldingDCPA01(HoldingBase):
 
     @property
     def fan_speed(self) -> D3netFanSpeed:
-        """Fan speed (read from holding register 2 bits 12-14)."""
-        return D3netFanSpeed(self._decode_uint(32 + 12, 3))
+        """Fan speed at holding register 2 bits 4-7 (DCPA01-specific).
+
+        The DTA116A51 source docs put fan_speed at holding +2 bits 12-14,
+        but on DCPA01 BMS writes to bits 12-14 have no observable effect
+        on the IDU. Fan_speed lives at bits 4-7, the same bit position as
+        the status read at input +2 bits 4-7 (verified 2026-05-21 by
+        writing 0x3456 to HA 2010 -- bits 4-7 = 5 = Top -- and observing
+        the IDU physically go to Top fan with the status mirror catching
+        up within ~60s).
+
+        See DCPA01_EMPIRICAL_PROTOCOL.md §4.6 for the full write recipe.
+        """
+        return D3netFanSpeed(self._decode_uint(32 + 4, 4))
 
     @fan_speed.setter
     def fan_speed(self, speed: D3netFanSpeed):
-        """Set fan speed at holding register 2 bits 12-14."""
-        self._encode_uint(32 + 12, 3, speed.value)
+        """Set fan speed at holding register 2 bits 4-7 (DCPA01-specific)."""
+        self._encode_uint(32 + 4, 4, speed.value)
         self._preserve_holding_reg2_default()
         self.fan_control = True
 
