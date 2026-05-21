@@ -72,9 +72,16 @@ class InputBase:
         return result
 
     def _decode_sint(self, start, length) -> int:
-        """Decode a signed int from the registers."""
+        """Decode a sign-magnitude signed int from the registers.
+
+        The sign bit lives at the top of the field (``start + length - 1``),
+        matching ``_encode_sint`` below. Previously this read the bit one
+        past the field, which silently flipped sign based on whatever
+        unrelated value occupied the next bit (surfaced on DCPA01 where
+        the bit after a setpoint register is mode-flag bit 0).
+        """
         result = self._decode_uint(start, length - 1)
-        if self._bit(start + length):
+        if self._bit(start + length - 1):
             result = 0 - result
         return result
 
