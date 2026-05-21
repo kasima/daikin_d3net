@@ -6,7 +6,7 @@ import asyncio
 from datetime import timedelta
 import logging
 
-from pymodbus.client import AsyncModbusTcpClient
+from pymodbus.client import AsyncModbusSerialClient, AsyncModbusTcpClient
 from pymodbus.framer import FramerType as ModbusFramer
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
@@ -17,12 +17,22 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_ADAPTER,
+    CONF_BAUDRATE,
+    CONF_BYTESIZE,
+    CONF_PARITY,
     CONF_PROTOCOL,
+    CONF_SERIAL_PORT,
     CONF_SLAVE,
+    CONF_STOPBITS,
     DEFAULT_ADAPTER,
+    DEFAULT_BAUDRATE,
+    DEFAULT_BYTESIZE,
+    DEFAULT_PARITY,
+    DEFAULT_STOPBITS,
     DOMAIN,
     MANUFACTURER,
     MODEL,
+    PROTOCOL_RTU,
     PROTOCOL_RTU_OVER_TCP,
     PROTOCOL_TCP,
     UPDATE_INTERVAL,
@@ -46,19 +56,42 @@ PLATFORMS: list[Platform] = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Daikin Modbus from a config entry."""
-    host = entry.data[CONF_HOST]
     name = entry.data[CONF_NAME]
-    port = entry.data[CONF_PORT]
     slave = entry.data[CONF_SLAVE]
     protocol = entry.data.get(CONF_PROTOCOL, PROTOCOL_TCP)
     adapter = D3netAdapter(entry.data.get(CONF_ADAPTER, DEFAULT_ADAPTER))
 
-    _LOGGER.info("Setup %s.%s (adapter=%s)", DOMAIN, name, adapter.value)
+    _LOGGER.info(
+        "Setup %s.%s (adapter=%s, protocol=%s)", DOMAIN, name, adapter.value, protocol
+    )
 
-    if protocol == PROTOCOL_RTU_OVER_TCP:
-        client = AsyncModbusTcpClient(host=host, port=port, timeout=10, framer=ModbusFramer.RTU)
+    if protocol == PROTOCOL_RTU:
+        serial_port = entry.data[CONF_SERIAL_PORT]
+        baudrate = entry.data.get(CONF_BAUDRATE, DEFAULT_BAUDRATE)
+        parity = entry.data.get(CONF_PARITY, DEFAULT_PARITY)
+        stopbits = entry.data.get(CONF_STOPBITS, DEFAULT_STOPBITS)
+        bytesize = entry.data.get(CONF_BYTESIZE, DEFAULT_BYTESIZE)
+        client = AsyncModbusSerialClient(
+            port=serial_port,
+            baudrate=baudrate,
+            parity=parity,
+            stopbits=stopbits,
+            bytesize=bytesize,
+            timeout=10,
+        )
+        endpoint = f"{serial_port}@{baudrate} {bytesize}{parity}{stopbits}"
+    elif protocol == PROTOCOL_RTU_OVER_TCP:
+        host = entry.data[CONF_HOST]
+        port = entry.data[CONF_PORT]
+        client = AsyncModbusTcpClient(
+            host=host, port=port, timeout=10, framer=ModbusFramer.RTU
+        )
+        endpoint = f"{host}:{port}"
     else:
+        host = entry.data[CONF_HOST]
+        port = entry.data[CONF_PORT]
         client = AsyncModbusTcpClient(host=host, port=port, timeout=10)
+        endpoint = f"{host}:{port}"
 
     gateway = D3netGateway(client, slave, adapter=adapter)
     try:
@@ -66,7 +99,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.runtime_data = D3netCoordinator(hass, gateway, entry)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except ConnectionError as ex:
-        raise ConfigEntryNotReady(f"Unable to connect to {host}:{port}") from ex
+        raise ConfigEntryNotReady(f"Unable to connect to {endpoint}") from ex
     else:
         return True
 

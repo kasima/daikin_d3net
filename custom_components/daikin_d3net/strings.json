@@ -5,8 +5,13 @@
         "title": "Enter the connection details for your DIII-Net ModBus gateway",
         "data": {
           "name": "Prefix for Daikin Modbus Entities",
-          "host": "Modbus Gateway Address",
-          "port": "Modbus Gateway Port",
+          "host": "Modbus Gateway Address (TCP / RTU-over-TCP only)",
+          "port": "Modbus Gateway Port (TCP / RTU-over-TCP only)",
+          "serial_port": "Serial Port (RTU only, e.g. /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_XXXX-if00-port0)",
+          "baudrate": "Baud Rate (RTU only)",
+          "parity": "Parity (RTU only)",
+          "stopbits": "Stop Bits (RTU only)",
+          "bytesize": "Byte Size (RTU only)",
           "slave": "Modbus Slave ID",
           "modbus_protocol": "Modbus Protocol",
           "adapter": "Daikin DIII-Net Adapter Model"

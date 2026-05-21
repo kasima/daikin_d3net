@@ -31,9 +31,15 @@ MODEL = "DIII-Net Modbus"
 CONF_SLAVE = "d3net_slave"
 CONF_PROTOCOL = "modbus_protocol"
 CONF_ADAPTER = "adapter"
+CONF_SERIAL_PORT = "serial_port"
+CONF_BAUDRATE = "baudrate"
+CONF_PARITY = "parity"
+CONF_STOPBITS = "stopbits"
+CONF_BYTESIZE = "bytesize"
 
 PROTOCOL_TCP = "tcp"
 PROTOCOL_RTU_OVER_TCP = "rtu_over_tcp"
+PROTOCOL_RTU = "rtu"
 
 ADAPTER_DTA116A51 = D3netAdapter.DTA116A51.value
 ADAPTER_DCPA01 = D3netAdapter.DCPA01.value
@@ -42,6 +48,13 @@ DEFAULT_NAME = "Daikin"
 DEFAULT_PORT = 502
 DEFAULT_SLAVE = 1
 DEFAULT_ADAPTER = ADAPTER_DTA116A51
+# Daikin DIII-Net/Modbus adapters use 8E1 serial framing per spec; baud rate
+# is selectable on the adapter (9600 default on DTA116A51, 19200 typical).
+DEFAULT_SERIAL_PORT = "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_XXXXX-if00-port0"
+DEFAULT_BAUDRATE = 19200
+DEFAULT_PARITY = "E"
+DEFAULT_STOPBITS = 1
+DEFAULT_BYTESIZE = 8
 
 UPDATE_INTERVAL = 10
 
