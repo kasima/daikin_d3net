@@ -148,7 +148,9 @@ class D3netClimate(CoordinatorEntity, ClimateEntity):
     def hvac_action(self) -> HVACAction:
         """The HVAC mode that Unit is in."""
         if self._unit.status.power:
-            return ACTION_DAIKIN_HA[self._unit.status.operating_current]
+            return ACTION_DAIKIN_HA.get(
+                self._unit.status.operating_current, HVACAction.IDLE
+            )
         return HVACAction.OFF
 
     @property
