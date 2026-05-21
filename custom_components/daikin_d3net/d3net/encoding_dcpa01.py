@@ -261,10 +261,15 @@ class UnitStatusDCPA01(InputBase):
 
     @fan_direct.setter
     def fan_direct(self, direct: D3netFanDirection):
-        """Setter is a no-op on UnitStatusDCPA01 — writes go through
-        UnitHoldingDCPA01 (holding register 2 bits 8-10)."""
-        # Intentional no-op. Kept for interface compatibility with sync().
-        return
+        """Stage fan direction in the status buffer at register 2 bits 8-10.
+
+        The actual modbus write happens against the holding register via
+        ``UnitHoldingDCPA01.fan_direct`` during ``D3netUnit.async_write_*``;
+        ``HoldingBase.sync()`` reads this value back via ``getattr(status,
+        'fan_direct')``, so the new value must land in the buffer here or
+        the holding side never goes dirty.
+        """
+        self._encode_uint(32 + 8, 3, direct.value)
 
     @property
     def fan_speed(self) -> D3netFanSpeed:
@@ -273,9 +278,12 @@ class UnitStatusDCPA01(InputBase):
 
     @fan_speed.setter
     def fan_speed(self, speed: D3netFanSpeed):
-        """Setter is a no-op on UnitStatusDCPA01 — writes go through
-        UnitHoldingDCPA01."""
-        return
+        """Stage fan speed in the status buffer at register 2 bits 4-7.
+
+        See ``fan_direct`` setter above for why the buffer write matters
+        even though the modbus write happens through the holding side.
+        """
+        self._encode_uint(32 + 4, 4, speed.value)
 
     # --- Operation mode: register 0 bits 8-10 on DCPA01.
     # Docs encode mode in 4 bits (0-15 range) at register 1 bits 0-3 with
