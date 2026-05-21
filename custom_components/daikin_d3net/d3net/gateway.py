@@ -182,20 +182,52 @@ class D3netGateway:
         return decoder
 
     async def async_write(self, decode: HoldingBase, index: int):
-        """Write a register."""
+        """Write holding registers.
+
+        For DCPA01 we issue one ``0x06`` write per dirty register. The
+        DCPA01 firmware appears to fire DIII control commands reliably
+        only for single-register writes -- multi-register ``0x10`` writes
+        store the bits in the holding mirror but do not propagate fields
+        like fan_speed to the IDU. (Confirmed 2026-05-21: a manual 0x06
+        write to holding +2 bits 4-7 = 5 made 1-01 go to Top fan, but
+        the integration's 0x10 write of the same value did not.)
+
+        DTA116A51 and other adapters continue to use the original 0x10
+        multi-register path.
+        """
         _LOGGER.debug(
             "%s %02i %s", ("Write" if decode.dirty else "Skipped write"), index, decode
         )
-        if decode.dirty:
-            async with self._lock:
-                await self._async_connect()
+        if not decode.dirty:
+            return
+        async with self._lock:
+            await self._async_connect()
+            if self._adapter == D3netAdapter.DCPA01:
+                # Snapshot so concurrent _bit() calls don't race the loop.
+                dirty = sorted(decode.dirty_registers)
+                for reg in dirty:
+                    await self._throttle_start()
+                    address = decode.ADDRESS + index * decode.COUNT + reg
+                    _LOGGER.debug(
+                        "DCPA01 single-register write idx=%02i reg=%02i addr=%i value=%i",
+                        index, reg, address, decode.registers[reg],
+                    )
+                    await self._client.write_register(
+                        address=address,
+                        value=decode.registers[reg],
+                        device_id=self._device_id,
+                    )
+                    await self._throttle_end()
+            else:
                 await self._throttle_start()
                 address = decode.ADDRESS + index * decode.COUNT
                 await self._client.write_registers(
-                    address=address, device_id=self._device_id, values=decode.registers
+                    address=address,
+                    device_id=self._device_id,
+                    values=decode.registers,
                 )
                 await self._throttle_end()
-                decode.written()
+            decode.written()
 
 
 class D3netUnit:
