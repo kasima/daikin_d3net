@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components.climate import FAN_OFF, FAN_ON
+from homeassistant.components.climate import FAN_OFF, FAN_ON, HVACMode
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -69,7 +69,19 @@ class D3netSelectMode(D3netSelectBase):
         super().__init__(coordinator, unit)
         self._attr_name = self._attr_device_info["name"] + " Mode"
         self._attr_unique_id = self._attr_name
-        self._attr_options = [MODE_HA_TEXT[name] for name in MODE_HA_TEXT]
+        # Filter to modes the IDU actually supports. The capability getters
+        # are GUESS-mapped on DCPA01 (cap +1 bits 3-7 -> mode flags) but
+        # match what the climate entity already does for hvac_modes.
+        mode_caps = [
+            (HVACMode.AUTO, unit.capabilities.auto_mode_capable),
+            (HVACMode.COOL, unit.capabilities.cool_mode_capable),
+            (HVACMode.DRY, unit.capabilities.dry_mode_capable),
+            (HVACMode.FAN_ONLY, unit.capabilities.fan_mode_capable),
+            (HVACMode.HEAT, unit.capabilities.heat_mode_capable),
+        ]
+        self._attr_options = [
+            MODE_HA_TEXT[mode] for mode, capable in mode_caps if capable
+        ]
 
     @property
     def current_option(self) -> str:
