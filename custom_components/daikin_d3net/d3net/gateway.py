@@ -7,7 +7,7 @@ import time
 from pymodbus.client import ModbusBaseClient
 
 # from pymodbus.pdu import ModbusResponse
-from .const import D3netRegisterType
+from .const import D3netAdapter, D3netRegisterType
 from .encoding import (
     HoldingBase,
     InputBase,
@@ -17,8 +17,31 @@ from .encoding import (
     UnitHolding,
     UnitStatus,
 )
+from .encoding_dcpa01 import (
+    UnitCapabilityDCPA01,
+    UnitHoldingDCPA01,
+    UnitStatusDCPA01,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+# Per-adapter decoder class dispatch. SystemStatus and UnitError are reused
+# across adapters: the system register layout (30001-30009) is identical on
+# both DTA116A51/EKMBDXB7V1 and DCPA01 (multi-group bitmap scheme), and the
+# error register layout on DCPA01 is assumed to match the docs (untested,
+# see encoding_dcpa01.py for caveats).
+ADAPTER_DECODERS: dict[D3netAdapter, dict[str, type]] = {
+    D3netAdapter.DTA116A51: {
+        "capability": UnitCapability,
+        "status": UnitStatus,
+        "holding": UnitHolding,
+    },
+    D3netAdapter.DCPA01: {
+        "capability": UnitCapabilityDCPA01,
+        "status": UnitStatusDCPA01,
+        "holding": UnitHoldingDCPA01,
+    },
+}
 
 # Seconds between modbus access
 THROTTLE_DELAY = 0.025
@@ -35,18 +58,35 @@ CACHE_ERROR = 10
 class D3netGateway:
     """Daikin DIII-NET Interface Gateway."""
 
-    def __init__(self, client: ModbusBaseClient, device_id: int) -> None:
+    def __init__(
+        self,
+        client: ModbusBaseClient,
+        device_id: int,
+        adapter: D3netAdapter = D3netAdapter.DTA116A51,
+    ) -> None:
         """Initialise the D3net Gateway."""
         self._device_id = device_id
         self._client: ModbusBaseClient = client
         self._units: D3netUnit | None = None
         self._throttle = None
         self._lock = asyncio.Lock()
+        self._adapter = adapter
+        self._decoders = ADAPTER_DECODERS[adapter]
 
     @property
     def units(self):
         """Return the Units."""
         return self._units
+
+    @property
+    def adapter(self) -> D3netAdapter:
+        """The configured adapter type."""
+        return self._adapter
+
+    @property
+    def decoders(self) -> dict[str, type]:
+        """Adapter-specific decoder class dispatch."""
+        return self._decoders
 
     async def _throttle_start(self):
         """Check if we need to delay and sleep."""
@@ -95,10 +135,12 @@ class D3netGateway:
 
                 for index, connected in enumerate(system_decoder.units_connected):
                     if connected and not system_decoder.units_error[index]:
-                        capabilities: UnitCapability = await self._async_read(
-                            UnitCapability, index
+                        capabilities = await self._async_read(
+                            self._decoders["capability"], index
                         )
-                        status: UnitStatus = await self._async_read(UnitStatus, index)
+                        status = await self._async_read(
+                            self._decoders["status"], index
+                        )
                         unit = D3netUnit(self, index, capabilities, status)
                         self._units.append(unit)
 
@@ -204,7 +246,12 @@ class D3netUnit:
 
     @property
     def errors(self) -> UnitError:
-        """Error object for the unit."""
+        """Error object for the unit.
+
+        NOTE: On DCPA01 the error-code register layout (PDF 33601+, ASCII
+        characters) is assumed to match docs but has not been verified on
+        live hardware. See encoding_dcpa01.py for caveats.
+        """
         if self._error is None or not self._holding.readWithin(CACHE_ERROR):
             self._error = self._gateway.async_read(UnitError, self._index)
         return self._error
@@ -217,7 +264,9 @@ class D3netUnit:
         """Load unit status."""
         # Don't update status if we've just written
         if self._holding is None or not self._holding.writeWithin(CACHE_WRITE):
-            self._status = await self._gateway.async_read(UnitStatus, self._index)
+            self._status = await self._gateway.async_read(
+                self._gateway.decoders["status"], self._index
+            )
         else:
             _LOGGER.debug(
                 "Read %02i skipped on read-after-write delay",
@@ -232,7 +281,9 @@ class D3netUnit:
             and not self._holding.readWithin(CACHE_WRITE)
             and not self._holding.writeWithin(CACHE_WRITE)
         ):
-            self._holding = await self._gateway.async_read(UnitHolding, self._index)
+            self._holding = await self._gateway.async_read(
+                self._gateway.decoders["holding"], self._index
+            )
             self._holding.sync(self._status, self.SYNC_PROPERTIES)
             if self._holding.dirty:
                 # The holding registers are out of sync with status, so update them before making changes.

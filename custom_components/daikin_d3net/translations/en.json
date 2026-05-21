@@ -15,7 +15,8 @@
                     "name": "Prefix for Daikin Modbus Entities",
                     "port": "Modbus Gateway Port",
                     "slave": "Modbus Slave ID",
-                    "modbus_protocol": "Modbus Protocol"
+                    "modbus_protocol": "Modbus Protocol",
+                    "adapter": "Daikin DIII-Net Adapter Model"
                 },
                 "title": "Enter the connection details for your DIII-Net ModBus gateway"
             }

@@ -18,8 +18,12 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    ADAPTER_DCPA01,
+    ADAPTER_DTA116A51,
+    CONF_ADAPTER,
     CONF_PROTOCOL,
     CONF_SLAVE,
+    DEFAULT_ADAPTER,
     DEFAULT_NAME,
     DEFAULT_PORT,
     DEFAULT_SLAVE,
@@ -41,6 +45,15 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
                 options=[
                     {"value": PROTOCOL_TCP, "label": "Modbus TCP"},
                     {"value": PROTOCOL_RTU_OVER_TCP, "label": "Modbus RTU over TCP"},
+                ],
+                mode=SelectSelectorMode.LIST,
+            )
+        ),
+        vol.Optional(CONF_ADAPTER, default=DEFAULT_ADAPTER): SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    {"value": ADAPTER_DTA116A51, "label": "DTA116A51 / EKMBDXB7V1"},
+                    {"value": ADAPTER_DCPA01, "label": "DCPA01 (empirical, see docs)"},
                 ],
                 mode=SelectSelectorMode.LIST,
             )

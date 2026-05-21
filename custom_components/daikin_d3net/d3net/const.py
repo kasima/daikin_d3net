@@ -64,3 +64,21 @@ class D3netRegisterType(Enum):
 
     Input = "input"
     Holding = "holding"
+
+
+class D3netAdapter(Enum):
+    """DIII-Net / Modbus adapter variant.
+
+    DTA116A51 / EKMBDXB7V1 share a register layout documented in the EKMBDXB7V1
+    Design Guide (4P642495-1A) — this is the layout the integration was
+    originally written for.
+
+    DCPA01 has a different, undocumented register layout that was reverse
+    engineered empirically. See DCPA01_EMPIRICAL_PROTOCOL.md in the
+    reverse-engineering notes for verified field positions. Some functions
+    (filter sign, error code reporting, defrost status) are best-guesses on
+    DCPA01 and may not behave correctly.
+    """
+
+    DTA116A51 = "dta116a51"
+    DCPA01 = "dcpa01"

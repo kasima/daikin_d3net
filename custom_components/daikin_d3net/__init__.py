@@ -16,8 +16,10 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    CONF_ADAPTER,
     CONF_PROTOCOL,
     CONF_SLAVE,
+    DEFAULT_ADAPTER,
     DOMAIN,
     MANUFACTURER,
     MODEL,
@@ -25,6 +27,7 @@ from .const import (
     PROTOCOL_TCP,
     UPDATE_INTERVAL,
 )
+from .d3net.const import D3netAdapter
 from .d3net.gateway import D3netGateway, D3netUnit
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,15 +51,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     port = entry.data[CONF_PORT]
     slave = entry.data[CONF_SLAVE]
     protocol = entry.data.get(CONF_PROTOCOL, PROTOCOL_TCP)
+    adapter = D3netAdapter(entry.data.get(CONF_ADAPTER, DEFAULT_ADAPTER))
 
-    _LOGGER.info("Setup %s.%s", DOMAIN, name)
+    _LOGGER.info("Setup %s.%s (adapter=%s)", DOMAIN, name, adapter.value)
 
     if protocol == PROTOCOL_RTU_OVER_TCP:
         client = AsyncModbusTcpClient(host=host, port=port, timeout=10, framer=ModbusFramer.RTU)
     else:
         client = AsyncModbusTcpClient(host=host, port=port, timeout=10)
 
-    gateway = D3netGateway(client, slave)
+    gateway = D3netGateway(client, slave, adapter=adapter)
     try:
         await gateway.async_setup()
         entry.runtime_data = D3netCoordinator(hass, gateway, entry)

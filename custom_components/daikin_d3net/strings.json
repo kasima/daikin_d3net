@@ -8,7 +8,8 @@
           "host": "Modbus Gateway Address",
           "port": "Modbus Gateway Port",
           "slave": "Modbus Slave ID",
-          "modbus_protocol": "Modbus Protocol"
+          "modbus_protocol": "Modbus Protocol",
+          "adapter": "Daikin DIII-Net Adapter Model"
         }
       }
     },

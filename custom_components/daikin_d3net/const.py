@@ -15,6 +15,7 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 
+from .d3net.const import D3netAdapter
 from .d3net.encoding import (
     D3netFanDirection,
     D3netFanDirectionCapability,
@@ -29,13 +30,18 @@ MODEL = "DIII-Net Modbus"
 
 CONF_SLAVE = "d3net_slave"
 CONF_PROTOCOL = "modbus_protocol"
+CONF_ADAPTER = "adapter"
 
 PROTOCOL_TCP = "tcp"
 PROTOCOL_RTU_OVER_TCP = "rtu_over_tcp"
 
+ADAPTER_DTA116A51 = D3netAdapter.DTA116A51.value
+ADAPTER_DCPA01 = D3netAdapter.DCPA01.value
+
 DEFAULT_NAME = "Daikin"
 DEFAULT_PORT = 502
 DEFAULT_SLAVE = 1
+DEFAULT_ADAPTER = ADAPTER_DTA116A51
 
 UPDATE_INTERVAL = 10
 
