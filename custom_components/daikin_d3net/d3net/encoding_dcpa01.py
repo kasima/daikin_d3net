@@ -486,18 +486,25 @@ class UnitHoldingDCPA01(HoldingBase):
     def temp_setpoint(self, setpoint: float):
         self._encode_sint(16, 16, int(setpoint * 10))
 
-    # --- Filter reset: GUESS. Docs put it at control reg 2 bits 4-7 (write
-    # 15 to clear, 0 to no-op). On DCPA01 control reg 2 is at holding +2,
-    # so we apply the same logic to bits 4-7 of register 2 but this has
-    # not been verified.
+    # --- Filter reset: location UNKNOWN on DCPA01.
+    #
+    # Previously we assumed docs' "filter sign reset at control reg 2 bits
+    # 4-7" applied here, but those bits are actually fan_speed (verified
+    # 2026-05-21). The phantom alias caused
+    # ``D3netUnit.async_write_commit`` to interpret any non-Auto fan_speed
+    # as a pending filter_reset and immediately issue a follow-up write
+    # clearing bits 4-7 back to 0 -- silently reverting every BMS-driven
+    # fan_speed change to Auto.
+    #
+    # Until the real filter_reset position is found, leave this as a
+    # no-op so the commit path doesn't fire a follow-up write.
 
     @property
     def filter_reset(self) -> bool:
-        """Filter reset state. GUESS — assumes docs' bit positions translate."""
-        return self._decode_uint(32 + 4, 4) != 0
+        """Filter reset state. Position unknown on DCPA01 — always False."""
+        return False
 
     @filter_reset.setter
     def filter_reset(self, state: bool):
-        """Trigger filter reset. GUESS — untested on DCPA01."""
-        self._encode_uint(32 + 4, 4, 15 if state else 0)
-        self._preserve_holding_reg2_default()
+        """No-op. DCPA01 filter_reset register/bits not yet identified."""
+        return
