@@ -35,6 +35,7 @@ class InputBase:
 
         self._registers = registers
         self._dirty = False
+        self._dirty_registers: set[int] = set()
         self._timeRead = time.perf_counter()
 
     def _bit(self, bit: int, value: bool | None = None):
@@ -53,6 +54,7 @@ class InputBase:
 
         self._registers[register] += mask * (1 if value else -1)
         self._dirty = True
+        self._dirty_registers.add(register)
         return value
 
     def _decode_bit_array(self, start, length):
@@ -146,6 +148,18 @@ class HoldingBase(InputBase):
         """Update the object status to reflect that it has just been written."""
         self._timeWrite = time.perf_counter()
         self._dirty = False
+        self._dirty_registers = set()
+
+    @property
+    def dirty_registers(self) -> set[int]:
+        """Indices of registers that have changed since the last write/read.
+
+        Used by the gateway to issue per-register 0x06 writes on adapters
+        (notably DCPA01) where multi-register 0x10 writes do not reliably
+        trigger DIII commands for all fields. DTA116A51 continues to use
+        the multi-register path.
+        """
+        return self._dirty_registers
 
 
 class SystemStatus(InputBase):
