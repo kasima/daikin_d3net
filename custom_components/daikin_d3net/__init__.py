@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
+from logging.handlers import RotatingFileHandler
 
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.framer import FramerType as ModbusFramer
@@ -31,6 +32,39 @@ from .d3net.const import D3netAdapter
 from .d3net.gateway import D3netGateway, D3netUnit
 
 _LOGGER = logging.getLogger(__name__)
+
+# Bus-write audit log. The DCPA01 enforces a quota of 7000 control commands
+# per IDU per year (~19/day); having a dedicated file log of every holding
+# write makes it easy to spot abnormal write volume long after the fact.
+#
+# The actual write log lines are emitted at INFO from
+# ``D3netGateway.async_write``. We capture INFO+ to a rotating file so the
+# normal HA container log isn't polluted and the file size stays bounded.
+_AUDIT_LOG_PATH = "/config/daikin_d3net_writes.log"
+_pkg_logger = logging.getLogger("custom_components.daikin_d3net")
+if not any(
+    isinstance(h, RotatingFileHandler)
+    and getattr(h, "baseFilename", "") == _AUDIT_LOG_PATH
+    for h in _pkg_logger.handlers
+):
+    _h = RotatingFileHandler(
+        _AUDIT_LOG_PATH,
+        maxBytes=1_000_000,
+        backupCount=3,
+    )
+    _h.setLevel(logging.INFO)
+    _h.setFormatter(
+        logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+    )
+    _pkg_logger.addHandler(_h)
+    # Lift the package logger to INFO so the audit-log handler actually
+    # sees the write events. Without this, the parent root logger's
+    # WARNING default filters INFO before the handler is consulted.
+    # HA's own ``logger:`` config can still raise this to DEBUG for
+    # finer-grained tracing; the file handler's level=INFO floor keeps
+    # the audit file lean either way.
+    if _pkg_logger.level == logging.NOTSET or _pkg_logger.level > logging.INFO:
+        _pkg_logger.setLevel(logging.INFO)
 
 
 PLATFORMS: list[Platform] = [

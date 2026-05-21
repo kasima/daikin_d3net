@@ -205,12 +205,18 @@ class D3netGateway:
             if self._adapter == D3netAdapter.DCPA01:
                 # Snapshot so concurrent _bit() calls don't race the loop.
                 dirty = sorted(decode.dirty_registers)
+                unit_id = f"{int(index / 16 + 1)}-{index % 16:02d}"
                 for reg in dirty:
                     await self._throttle_start()
                     address = decode.ADDRESS + index * decode.COUNT + reg
-                    _LOGGER.debug(
-                        "DCPA01 single-register write idx=%02i reg=%02i addr=%i value=%i",
-                        index, reg, address, decode.registers[reg],
+                    # INFO so the line lands in the integration's
+                    # rotating audit log; we want every BMS write counted
+                    # against the DCPA01's 7000/year/IDU control-command
+                    # quota visible in /config/daikin_d3net_writes.log.
+                    _LOGGER.info(
+                        "DCPA01 write unit=%s idx=%02i reg=%02i addr=%i value=%i (0x%04X)",
+                        unit_id, index, reg, address,
+                        decode.registers[reg], decode.registers[reg],
                     )
                     await self._client.write_register(
                         address=address,
@@ -221,6 +227,11 @@ class D3netGateway:
             else:
                 await self._throttle_start()
                 address = decode.ADDRESS + index * decode.COUNT
+                unit_id = f"{int(index / 16 + 1)}-{index % 16:02d}"
+                _LOGGER.info(
+                    "multi-register write unit=%s idx=%02i addr=%i count=%i",
+                    unit_id, index, address, len(decode.registers),
+                )
                 await self._client.write_registers(
                     address=address,
                     device_id=self._device_id,
