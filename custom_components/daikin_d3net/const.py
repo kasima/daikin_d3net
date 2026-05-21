@@ -107,6 +107,11 @@ ACTION_DAIKIN_HA = {
     D3netOperationMode.HEAT: HVACAction.HEATING,
     D3netOperationMode.COOL: HVACAction.COOLING,
     D3netOperationMode.FAN: HVACAction.FAN,
+    D3netOperationMode.DRY: HVACAction.DRYING,
+    D3netOperationMode.VENT: HVACAction.FAN,
+    D3netOperationMode.AUTO: HVACAction.IDLE,
+    D3netOperationMode.SLAVE: HVACAction.IDLE,
+    D3netOperationMode.UNDEFINED: HVACAction.IDLE,
 }
 
 FANSPEEDCAPABILITY_DAIKIN_HA = {
