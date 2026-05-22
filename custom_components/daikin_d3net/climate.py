@@ -6,7 +6,6 @@ import logging
 
 from homeassistant.components.climate import (
     FAN_OFF,
-    SWING_OFF,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
@@ -21,15 +20,13 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .__init__ import D3netCoordinator
 from .const import (
+    FANDIRECTIONCAPABILITY_DAIKIN_HA,
     FANSPEED_DAIKIN_HA,
     FANSPEED_HA_DAIKIN,
     FANSPEEDCAPABILITY_DAIKIN_HA,
     OPERATION_MODE_ICONS,
-    SWINGMODE_DAIKIN_HA,
-    SWINGMODE_HA_DAIKIN,
-    SWINGMODECAPABILITY_DAIKIN_HA,
 )
-from .d3net.encoding import D3netOperationMode
+from .d3net.encoding import D3netFanDirection, D3netOperationMode
 from .d3net.gateway import D3netUnit
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,8 +100,14 @@ class D3netClimate(CoordinatorEntity, ClimateEntity):
 
         if unit.capabilities.fan_direct_capable:
             self._attr_supported_features |= ClimateEntityFeature.SWING_MODE
-            self._attr_swing_modes = SWINGMODECAPABILITY_DAIKIN_HA[
-                unit.capabilities.fan_direct_steps
+            # Full louvre range (Swing/Stop/P0-P4) on the climate entity.
+            # Upstream exposes only on/off here plus a separate fan-direction
+            # select; folded in here for one-card control.
+            self._attr_swing_modes = [
+                direction.name
+                for direction in FANDIRECTIONCAPABILITY_DAIKIN_HA[
+                    unit.capabilities.fan_direct_steps
+                ]
             ]
 
         self._attr_hvac_modes = []
@@ -172,10 +175,8 @@ class D3netClimate(CoordinatorEntity, ClimateEntity):
 
     @property
     def swing_mode(self):
-        """The current swing mode."""
-        if self._unit.status.fan:
-            return SWINGMODE_DAIKIN_HA[self._unit.status.fan_direct]
-        return SWING_OFF
+        """The current louvre position (Swing/Stop/P0-P4)."""
+        return self._unit.status.fan_direct.name
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -222,8 +223,8 @@ class D3netClimate(CoordinatorEntity, ClimateEntity):
         self.async_write_ha_state()
 
     async def async_set_swing_mode(self, swing_mode) -> None:
-        """Set new swing mode."""
+        """Set new louvre position (Swing/Stop/P0-P4)."""
         await self._unit.async_write_prepare()
-        self._unit.status.fan_direct = SWINGMODE_HA_DAIKIN[swing_mode]
+        self._unit.status.fan_direct = D3netFanDirection[swing_mode]
         await self._unit.async_write_commit()
         self.async_write_ha_state()
