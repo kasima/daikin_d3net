@@ -182,18 +182,17 @@ class D3netGateway:
         return decoder
 
     async def async_write(self, decode: HoldingBase, index: int):
-        """Write holding registers.
+        """Write holding registers via a single multi-register 0x10 call.
 
-        For DCPA01 we issue one ``0x06`` write per dirty register. The
-        DCPA01 firmware appears to fire DIII control commands reliably
-        only for single-register writes -- multi-register ``0x10`` writes
-        store the bits in the holding mirror but do not propagate fields
-        like fan_speed to the IDU. (Confirmed 2026-05-21: a manual 0x06
-        write to holding +2 bits 4-7 = 5 made 1-01 go to Top fan, but
-        the integration's 0x10 write of the same value did not.)
+        The DCPA01 fires DIII commands correctly on multi-register writes
+        (verified 2026-05-23). An earlier suspicion that it only fired on
+        single-register 0x06 writes was a symptom of the filter_reset
+        getter aliasing on fan_speed bits 4-7 of holding +2 (now fixed in
+        the DCPA01 decoder); with that fix in place, 0x10 works for both
+        adapters and the integration uses upstream's single write path.
 
-        DTA116A51 and other adapters continue to use the original 0x10
-        multi-register path.
+        Audit-log lines are emitted per dirty register so the DCPA01's
+        7000/IDU/year control-command quota stays visible per field.
         """
         _LOGGER.debug(
             "%s %02i %s", ("Write" if decode.dirty else "Skipped write"), index, decode
@@ -202,42 +201,24 @@ class D3netGateway:
             return
         async with self._lock:
             await self._async_connect()
-            if self._adapter == D3netAdapter.DCPA01:
-                # Snapshot so concurrent _bit() calls don't race the loop.
-                dirty = sorted(decode.dirty_registers)
-                unit_id = f"{int(index / 16 + 1)}-{index % 16:02d}"
-                for reg in dirty:
-                    await self._throttle_start()
-                    address = decode.ADDRESS + index * decode.COUNT + reg
-                    # INFO so the line lands in the integration's
-                    # rotating audit log; we want every BMS write counted
-                    # against the DCPA01's 7000/year/IDU control-command
-                    # quota visible in /config/daikin_d3net_writes.log.
-                    _LOGGER.info(
-                        "DCPA01 write unit=%s idx=%02i reg=%02i addr=%i value=%i (0x%04X)",
-                        unit_id, index, reg, address,
-                        decode.registers[reg], decode.registers[reg],
-                    )
-                    await self._client.write_register(
-                        address=address,
-                        value=decode.registers[reg],
-                        device_id=self._device_id,
-                    )
-                    await self._throttle_end()
-            else:
-                await self._throttle_start()
-                address = decode.ADDRESS + index * decode.COUNT
-                unit_id = f"{int(index / 16 + 1)}-{index % 16:02d}"
+            await self._throttle_start()
+            address = decode.ADDRESS + index * decode.COUNT
+            # Per-register audit-log lines before the single multi-register
+            # write. INFO so they land in /config/daikin_d3net_writes.log
+            # via the rotating handler attached in __init__.py.
+            unit_id = f"{int(index / 16 + 1)}-{index % 16:02d}"
+            for reg in sorted(decode.dirty_registers):
                 _LOGGER.info(
-                    "multi-register write unit=%s idx=%02i addr=%i count=%i",
-                    unit_id, index, address, len(decode.registers),
+                    "DCPA01 write unit=%s idx=%02i reg=%02i addr=%i value=%i (0x%04X)",
+                    unit_id, index, reg, address + reg,
+                    decode.registers[reg], decode.registers[reg],
                 )
-                await self._client.write_registers(
-                    address=address,
-                    device_id=self._device_id,
-                    values=decode.registers,
-                )
-                await self._throttle_end()
+            await self._client.write_registers(
+                address=address,
+                device_id=self._device_id,
+                values=decode.registers,
+            )
+            await self._throttle_end()
             decode.written()
 
 
