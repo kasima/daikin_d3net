@@ -6,6 +6,7 @@ import logging
 
 from homeassistant.components.climate import (
     FAN_OFF,
+    FAN_ON,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
@@ -94,8 +95,14 @@ class D3netClimate(CoordinatorEntity, ClimateEntity):
 
         if unit.capabilities.fan_speed_capable:
             self._attr_supported_features |= ClimateEntityFeature.FAN_MODE
-            self.fan_modes = FANSPEEDCAPABILITY_DAIKIN_HA[
-                unit.capabilities.fan_speed_steps
+            # FAN_ON/FAN_OFF have no mapping in FANSPEED_HA_DAIKIN — power is
+            # handled via HVACMode.OFF / turn_on / turn_off.
+            self.fan_modes = [
+                step
+                for step in FANSPEEDCAPABILITY_DAIKIN_HA[
+                    unit.capabilities.fan_speed_steps
+                ]
+                if step not in (FAN_ON, FAN_OFF)
             ]
 
         if unit.capabilities.fan_direct_capable:
