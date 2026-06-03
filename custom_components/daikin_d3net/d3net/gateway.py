@@ -56,9 +56,11 @@ CACHE_ERROR = 10
 # DCPA01 firmware needs ~100 ms to latch the sync-write before the next
 # write or the bit-0 transition recipe races and no DIII command fires.
 # See journal/2026-06-03-2-02-off-revert-investigation.md for the race
-# reproducer (66 ms gap intermittently fails, ≥100 ms reliable in tests).
-# 200 ms gives 2× safety margin over the empirical floor.
-DCPA01_SYNC_WRITE_DELAY = 0.2
+# reproducer (66 ms gap intermittently fails, 100 / 250 / 2 000 ms all
+# pass in one-shot tests). Trialing 100 ms — the empirical floor —
+# to minimise added user-perceived latency; if OFF presses recur,
+# bump back to 200 ms (2× safety).
+DCPA01_SYNC_WRITE_DELAY = 0.1
 
 
 class D3netGateway:
