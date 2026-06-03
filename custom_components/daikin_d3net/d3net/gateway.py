@@ -53,6 +53,12 @@ CACHE_WRITE = 35
 CACHE_READ = 60
 # Seconds before we reload error information
 CACHE_ERROR = 10
+# DCPA01 firmware needs ~100 ms to latch the sync-write before the next
+# write or the bit-0 transition recipe races and no DIII command fires.
+# See journal/2026-06-03-2-02-off-revert-investigation.md for the race
+# reproducer (66 ms gap intermittently fails, ≥100 ms reliable in tests).
+# 200 ms gives 2× safety margin over the empirical floor.
+DCPA01_SYNC_WRITE_DELAY = 0.2
 
 
 class D3netGateway:
@@ -317,6 +323,14 @@ class D3netUnit:
                     self._index,
                 )
                 await self._gateway.async_write(self._holding, self._index)
+                # DCPA01-specific: give the firmware time to latch the
+                # sync write before the user write lands. Without this
+                # delay the 2-step bit-0 transition recipe races and the
+                # OFF DIII command may not fire — IDU stays on.
+                # See DCPA01_EMPIRICAL_PROTOCOL.md §4.4 / journal
+                # 2026-06-03-2-02-off-revert-investigation.md.
+                if self._gateway.adapter == D3netAdapter.DCPA01:
+                    await asyncio.sleep(DCPA01_SYNC_WRITE_DELAY)
         else:
             _LOGGER.debug(
                 "Prepare %02i skipped on read-after-write delay",
